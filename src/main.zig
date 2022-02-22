@@ -15,37 +15,37 @@ pub fn main() !void {
 const SnakeGame = struct {
     allocator: std.mem.Allocator,
     grid: OccupantGrid,
-    snake_head_cell: *OccupantGrid.Cell,
-    snake_tail_cell: *OccupantGrid.Cell,
+    snake_head_coord: Indexer.Coord,
+    snake_tail_coord: Indexer.Coord,
 
     pub const OccupantGrid = Grid(Occupant);
+    pub const Indexer = OccupantGrid.Indexer;
 
-    pub fn init(allocator: std.mem.Allocator, random: std.rand.Random, size: OccupantGrid.Indexer.Bounds) !SnakeGame {
+    pub fn init(allocator: std.mem.Allocator, random: std.rand.Random, size: Indexer.Bounds) !SnakeGame {
         const grid = try OccupantGrid.init(allocator, size, .air);
         errdefer grid.deinit(allocator);
 
-        const snake_head_cell_coord = OccupantGrid.Indexer.Coord{
-            .x = random.uintLessThan(OccupantGrid.Indexer.HalfUInt, grid.size.w),
-            .y = random.uintLessThan(OccupantGrid.Indexer.HalfUInt, grid.size.h),
+        const snake_head_coord = Indexer.Coord{
+            .x = random.uintLessThan(Indexer.HalfUInt, grid.size.w),
+            .y = random.uintLessThan(Indexer.HalfUInt, grid.size.h),
         };
 
-        const snake_head_cell: *OccupantGrid.Cell = grid.getPtr(snake_head_cell_coord);
-        snake_head_cell.item = @unionInit(Occupant, "snake", .{
+        grid.getPtr(snake_head_coord).item = @unionInit(Occupant, "snake", .{
             .direction = random.enumValue(Direction),
             .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
         });
 
-        const snake_tail_cell: *OccupantGrid.Cell = grid.getPtr(OccupantGrid.Indexer.coordPlusOffsetWrapped(
+        const snake_tail_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(
             size,
-            snake_head_cell_coord,
-            OccupantGrid.Indexer.directionOffset(snake_head_cell.item.snake.direction.reversed()),
-        ));
+            snake_head_coord,
+            Indexer.directionOffset(grid.getPtr(snake_head_coord).item.snake.direction.reversed()),
+        );
 
         return SnakeGame{
             .allocator = allocator,
             .grid = grid,
-            .snake_head_cell = snake_head_cell,
-            .snake_tail_cell = snake_tail_cell,
+            .snake_head_coord = snake_head_coord,
+            .snake_tail_coord = snake_tail_coord,
         };
     }
 
@@ -53,12 +53,38 @@ const SnakeGame = struct {
         self.grid.deinit(self.allocator);
     }
 
+    pub fn advance(self: *SnakeGame) Event {
+        const old_head_coord = self.snake_head_coord;
+        const old_tail_coord = self.snake_tail_coord;
+        
+        const old_head_data = self.snakeHeadCellPtr().*;
+        const old_tail_data = self.snakeTailCellPtr().*;
+    }
+
+    fn snakeHeadCellPtr(self: *SnakeGame) *OccupantGrid.Cell {
+        return self.grid.getPtr(self.snake_head_coord);
+    }
+
+    fn snakeTailCellPtr(self: *SnakeGame) *OccupantGrid.Cell {
+        return self.grid.getPtr(self.snake_tail_coord);
+    }
+
+    pub const Event = union(enum) {
+        move,
+        grow,
+        collision: Collision,
+        pub const Collision = struct {
+            original_coord: Indexer.Coord,
+            snake_data: SnakeCellData,
+        };
+    };
+
     const Occupant = union(enum) {
         air,
         food,
         snake: SnakeCellData,
     };
-    const SnakeCellData = struct {
+    pub const SnakeCellData = struct {
         direction: Direction,
         rotation: ?Rotation,
     };
