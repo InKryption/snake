@@ -24,16 +24,23 @@ const SnakeGame = struct {
         const grid = try OccupantGrid.init(allocator, size, .air);
         errdefer grid.deinit(allocator);
 
-        const snake_head_cell: *OccupantGrid.Cell = grid.getPtr(.{
+        const snake_head_cell_coord = OccupantGrid.Indexer.Coord{
             .x = random.uintLessThan(OccupantGrid.Indexer.HalfUInt, grid.size.w),
             .y = random.uintLessThan(OccupantGrid.Indexer.HalfUInt, grid.size.h),
-        });
+        };
+
+        const snake_head_cell: *OccupantGrid.Cell = grid.getPtr(snake_head_cell_coord);
         snake_head_cell.item = @unionInit(Occupant, "snake", .{
             .direction = random.enumValue(Direction),
             .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
         });
 
-        const snake_tail_cell: *OccupantGrid.Cell = grid.getPtr(undefined);
+        const snake_tail_cell: *OccupantGrid.Cell = grid.getPtr(OccupantGrid.Indexer.coordPlusOffsetWrapped(
+            size,
+            snake_head_cell_coord,
+            OccupantGrid.Indexer.directionOffset(snake_head_cell.item.snake.direction.reversed()),
+        ));
+
         return SnakeGame{
             .allocator = allocator,
             .grid = grid,
@@ -118,17 +125,22 @@ pub fn Grid(comptime T: type) type {
                 cell.* = .{
                     .neighbors = neighbors: {
                         const coord = Indexer.indexToCoordInBounds(size, i) catch unreachable;
-                        const neighbor_coords: std.EnumArray(Direction, Indexer.Coord) = std.EnumArray(Direction, Indexer.Coord).init(.{
-                            .north = .{ .x = coord.x, .y = (coord.y + 1) % size.h },
-                            .south = .{ .x = coord.x, .y = (if (coord.y == 0) size.h else coord.y) - 1 },
-                            .east = .{ .x = (coord.x + 1) % size.w, .y = coord.y },
-                            .west = .{ .x = (if (coord.x == 0) size.w else coord.x) - 1, .y = coord.y },
-                        });
+                        // const neighbor_coords: std.EnumArray(Direction, Indexer.Coord) = std.EnumArray(Direction, Indexer.Coord).init(.{
+                        //     .north = .{ .x = coord.x, .y = (coord.y + 1) % size.h },
+                        //     .south = .{ .x = coord.x, .y = (if (coord.y == 0) size.h else coord.y) - 1 },
+                        //     .east = .{ .x = (coord.x + 1) % size.w, .y = coord.y },
+                        //     .west = .{ .x = (if (coord.x == 0) size.w else coord.x) - 1, .y = coord.y },
+                        // });
 
                         var neighbors = Cell.Neighbors.initUndefined();
                         var iterator = neighbors.iterator();
                         while (iterator.next()) |entry| {
-                            const index = Indexer.coordToIndexInBounds(size, neighbor_coords.get(entry.key)) catch unreachable;
+                            // const index = Indexer.coordToIndexInBounds(size, neighbor_coords.get(entry.key)) catch unreachable;
+                            const index = Indexer.coordToIndexInBounds(size, Indexer.coordPlusOffsetWrapped(
+                                size,
+                                coord,
+                                Indexer.directionOffset(entry.key),
+                            )) catch unreachable;
                             entry.value.* = &self.slice()[index];
                         }
 
@@ -250,11 +262,4 @@ pub fn Indexer2d(comptime int_bits: u16) type {
             };
         }
     };
-}
-
-test {
-    std.debug.print("\n", .{});
-    const Indexer = Indexer2d(@bitSizeOf(usize));
-    _ = std.debug.print(Indexer.coordPlusOffsetClamped());
-    _ = Indexer.coordPlusOffsetWrapped;
 }
