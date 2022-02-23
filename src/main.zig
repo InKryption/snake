@@ -18,8 +18,7 @@ const SnakeGame = struct {
     snake_head_coord: Indexer.Coord,
     snake_tail_coord: Indexer.Coord,
 
-    pub const OccupantGrid = Grid(Occupant);
-    pub const Indexer = OccupantGrid.Indexer;
+    pub const Indexer = Indexer2d(@bitSizeOf(usize));
 
     /// A combination of `initAlloc` and `initRandom`.
     /// Must be deinitialized with `deinitAllocated`.
@@ -228,80 +227,6 @@ pub const Direction = enum {
         };
     }
 };
-
-pub fn Grid(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        cells: [*]Cell,
-        size: Indexer.Bounds,
-
-        pub const Indexer = Indexer2d(@bitSizeOf(usize));
-
-        pub fn init(allocator: std.mem.Allocator, size: Indexer.Bounds, default_value: ?T) std.mem.Allocator.Error!Self {
-            var self = Self{
-                .cells = (try allocator.alloc(Cell, Indexer.boundsToLen(size))).ptr,
-                .size = size,
-            };
-            errdefer self.deinit(allocator);
-
-            for (self.slice()) |*cell, i| {
-                cell.* = .{
-                    .neighbors = neighbors: {
-                        const coord = Indexer.indexToCoordInBounds(size, i) catch unreachable;
-                        // const neighbor_coords: std.EnumArray(Direction, Indexer.Coord) = std.EnumArray(Direction, Indexer.Coord).init(.{
-                        //     .north = .{ .x = coord.x, .y = (coord.y + 1) % size.h },
-                        //     .south = .{ .x = coord.x, .y = (if (coord.y == 0) size.h else coord.y) - 1 },
-                        //     .east = .{ .x = (coord.x + 1) % size.w, .y = coord.y },
-                        //     .west = .{ .x = (if (coord.x == 0) size.w else coord.x) - 1, .y = coord.y },
-                        // });
-
-                        var neighbors = Cell.Neighbors.initUndefined();
-                        var iterator = neighbors.iterator();
-                        while (iterator.next()) |entry| {
-                            // const index = Indexer.coordToIndexInBounds(size, neighbor_coords.get(entry.key)) catch unreachable;
-                            const index = Indexer.coordToIndexInBounds(size, Indexer.coordPlusOffsetWrapped(
-                                size,
-                                coord,
-                                Indexer.directionOffset(entry.key),
-                            )) catch unreachable;
-                            entry.value.* = &self.slice()[index];
-                        }
-
-                        break :neighbors neighbors;
-                    },
-                    .item = if (default_value) |value| value else undefined,
-                };
-            }
-
-            return self;
-        }
-
-        pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
-            allocator.free(self.cells[0..Indexer.boundsToLen(self.size)]);
-        }
-
-        pub fn slice(self: Self) []Cell {
-            return self.cells[0..Indexer.boundsToLen(self.size)];
-        }
-
-        pub fn getPtr(self: Self, coord: Indexer.Coord) *Cell {
-            return &self.slice()[Indexer.coordToIndexInBounds(self.size, coord) catch unreachable];
-        }
-
-        pub fn getRow(self: Self, y: Indexer.HalfUInt) []Cell {
-            const start = Indexer.coordToIndexInOrOnBounds(self.size, .{ .x = 0, .y = y }) catch unreachable;
-            const end = Indexer.coordToIndexInOrOnBounds(self.size, .{ .x = self.size.w, .y = y }) catch unreachable;
-            return self.slice()[start..end];
-        }
-
-        pub const Cell = struct {
-            neighbors: Neighbors,
-            item: T,
-
-            pub const Neighbors = std.EnumArray(Direction, *Cell);
-        };
-    };
-}
 
 pub fn Indexer2d(comptime int_bits: u16) type {
     return struct {
