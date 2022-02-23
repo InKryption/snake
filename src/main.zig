@@ -20,6 +20,34 @@ const SnakeGame = struct {
 
     pub const Indexer = Indexer2d(@bitSizeOf(usize));
 
+    /// Asserts that the legnth of the buffer given is equivalent to the length represented by the size given.
+    /// Buffer must remain alive for the duration of the life of this snake.
+    /// Deinitialization not required.
+    pub fn initBuffer(buffer: []Occupant, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) Indexer.Error!SnakeGame {
+        std.debug.assert(Indexer.boundsToLen(size) == buffer.len);
+        const head_index = try Indexer.coordToIndexInBounds(size, head_coord);
+
+        std.mem.set(Occupant, buffer, .air);
+        buffer[head_index] = @unionInit(Occupant, "snake", head_data);
+
+        const tail_coord = Indexer.coordPlusOffsetWrapped(
+            size,
+            head_coord,
+            Indexer.directionOffset(buffer[head_index].snake.direction.reversed()),
+        );
+        buffer[Indexer.coordToIndexInBounds(size, tail_coord) catch unreachable] = @unionInit(Occupant, "snake", .{
+            .direction = buffer[head_index].snake.direction,
+            .rotation = null,
+        });
+
+        return SnakeGame{
+            .occupants = buffer.ptr,
+            .size = size,
+            .snake_head_coord = head_coord,
+            .snake_tail_coord = tail_coord,
+        };
+    }
+
     /// A combination of `initAlloc` and `initRandom`.
     /// Must be deinitialized with `deinitAllocated`.
     pub fn initAllocRandom(allocator: std.mem.Allocator, size: Indexer.Bounds, random: std.rand.Random) std.mem.Allocator.Error!SnakeGame {
@@ -64,34 +92,6 @@ const SnakeGame = struct {
                 .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
             },
         );
-    }
-
-    /// Asserts that the legnth of the buffer given is equivalent to the length represented by the size given.
-    /// Buffer must remain alive for the duration of the life of this snake.
-    /// Deinitialization not required.
-    pub fn initBuffer(buffer: []Occupant, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) Indexer.Error!SnakeGame {
-        std.debug.assert(Indexer.boundsToLen(size) == buffer.len);
-        const head_index = try Indexer.coordToIndexInBounds(size, head_coord);
-
-        std.mem.set(Occupant, buffer, .air);
-        buffer[head_index] = @unionInit(Occupant, "snake", head_data);
-
-        const tail_coord = Indexer.coordPlusOffsetWrapped(
-            size,
-            head_coord,
-            Indexer.directionOffset(buffer[head_index].snake.direction.reversed()),
-        );
-        buffer[Indexer.coordToIndexInBounds(size, tail_coord) catch unreachable] = @unionInit(Occupant, "snake", .{
-            .direction = buffer[head_index].snake.direction,
-            .rotation = null,
-        });
-
-        return SnakeGame{
-            .occupants = buffer.ptr,
-            .size = size,
-            .snake_head_coord = head_coord,
-            .snake_tail_coord = tail_coord,
-        };
     }
 
     pub fn advance(self: *SnakeGame) Event {
