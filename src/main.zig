@@ -1,5 +1,8 @@
 const std = @import("std");
 
+const cardinal = @import("cardinal.zig");
+const Indexer2d = @import("indexer2d.zig").Indexer2d;
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -17,9 +20,9 @@ pub fn main() !void {
     var y: SnakeGame.Indexer.HalfUInt = 0;
     while (y < sg.size.h) : (y += 1) {
         for (sg.getGridRow(y)) |cell| switch (cell) {
-            .snake => std.debug.print("🔲", .{}),
-            .food => std.debug.print("🔴", .{}),
-            .air => std.debug.print("⬛", .{}),
+            .snake => std.debug.print(" # ", .{}),
+            .food => std.debug.print(" O ", .{}),
+            .air => std.debug.print(" . ", .{}),
         };
         std.debug.print("\n", .{});
     }
@@ -71,8 +74,8 @@ const SnakeGame = struct {
                 .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
-                .direction = random.enumValue(Direction),
-                .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
+                .direction = random.enumValue(cardinal.Direction),
+                .rotation = if (random.boolean()) random.enumValue(cardinal.Rotation) else null,
             },
         );
     }
@@ -97,8 +100,8 @@ const SnakeGame = struct {
                 .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
-                .direction = random.enumValue(Direction),
-                .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
+                .direction = random.enumValue(cardinal.Direction),
+                .rotation = if (random.boolean()) random.enumValue(cardinal.Rotation) else null,
             },
         ) catch |err| return switch (err) {
             error.OutOfMemory => error.OutOfMemory,
@@ -117,8 +120,8 @@ const SnakeGame = struct {
         const old_head_data: SnakeCellData = self.getSnakeHeadCell().snake;
         const old_tail_data: SnakeCellData = self.getSnakeTailCell().snake;
 
-        const old_head_direction: Direction = if (old_head_data.rotation) |r| old_head_data.direction.rotated(r) else old_head_data.direction;
-        const old_tail_direction: Direction = if (old_tail_data.rotation) |r| old_tail_data.direction.rotated(r) else old_tail_data.direction;
+        const old_head_direction: cardinal.Direction = if (old_head_data.rotation) |r| old_head_data.direction.rotated(r) else old_head_data.direction;
+        const old_tail_direction: cardinal.Direction = if (old_tail_data.rotation) |r| old_tail_data.direction.rotated(r) else old_tail_data.direction;
 
         const dst_head_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_head_coord, Indexer.directionOffset(old_head_direction));
         const dst_tail_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_tail_coord, Indexer.directionOffset(old_tail_direction));
@@ -240,135 +243,7 @@ const SnakeGame = struct {
         snake: SnakeCellData,
     };
     pub const SnakeCellData = struct {
-        direction: Direction,
-        rotation: ?Rotation,
+        direction: cardinal.Direction,
+        rotation: ?cardinal.Rotation,
     };
 };
-
-pub const Rotation = enum {
-    clockwise,
-    anticlockwise,
-};
-
-pub const Direction = enum {
-    north,
-    east,
-    south,
-    west,
-
-    pub fn rotated(direction: Direction, rotation: Rotation) Direction {
-        return switch (direction) {
-            .north => switch (rotation) {
-                .clockwise => .east,
-                .anticlockwise => .west,
-            },
-            .east => switch (rotation) {
-                .clockwise => .south,
-                .anticlockwise => .north,
-            },
-            .south => switch (rotation) {
-                .clockwise => .west,
-                .anticlockwise => .east,
-            },
-            .west => switch (rotation) {
-                .clockwise => .north,
-                .anticlockwise => .south,
-            },
-        };
-    }
-
-    pub fn reversed(direction: Direction) Direction {
-        return switch (direction) {
-            .north => .south,
-            .south => .north,
-            .east => .west,
-            .west => .east,
-        };
-    }
-};
-
-pub fn Indexer2d(comptime int_bits: u16) type {
-    return struct {
-        pub const FullUInt = std.meta.Int(.unsigned, int_bits);
-        pub const HalfUInt = if (int_bits % 2 == 0) std.meta.Int(.unsigned, @divExact(int_bits, 2)) else Indexer2d(int_bits - 1).HalfUInt;
-
-        pub const FullSint = std.meta.Int(.signed, int_bits);
-        pub const HalfSInt = if (int_bits % 2 == 0) std.meta.Int(.signed, @divExact(int_bits, 2)) else Indexer2d(int_bits - 1).HalfSInt;
-
-        pub const Bounds = struct { w: HalfUInt, h: HalfUInt };
-        pub const Coord = struct { x: HalfUInt, y: HalfUInt };
-        pub const Offset = struct { x: HalfSInt, y: HalfSInt };
-
-        pub const Error = error{OutOfBounds};
-
-        pub fn boundsToLen(bounds: Bounds) FullUInt {
-            return std.math.mulWide(HalfUInt, bounds.w, bounds.h);
-        }
-
-        pub fn coordToIndexInBounds(bounds: Bounds, coord: Coord) Error!FullUInt {
-            const result = @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w);
-            return if ((coord.x < bounds.w or coord.y < bounds.h) and result < boundsToLen(bounds))
-                result
-            else
-                error.OutOfBounds;
-        }
-
-        pub fn coordToIndexInOrOnBounds(bounds: Bounds, coord: Coord) Error!FullUInt {
-            const result = @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w);
-            return if ((coord.x <= bounds.w or coord.y <= bounds.h) and result <= boundsToLen(bounds))
-                result
-            else
-                error.OutOfBounds;
-        }
-
-        pub fn indexToCoordInBounds(bounds: Bounds, index: FullUInt) Error!Coord {
-            return if (index < boundsToLen(bounds)) Coord{
-                .x = @intCast(HalfUInt, index % bounds.w),
-                .y = @intCast(HalfUInt, @divTrunc(index, bounds.w)),
-            } else error.OutOfBounds;
-        }
-
-        pub fn indexToCoordInOrOnBounds(bounds: Bounds, index: FullUInt) Error!Coord {
-            return if (index <= boundsToLen(bounds)) Coord{
-                .x = index % bounds.w,
-                .y = @divTrunc(index, bounds.w),
-            } else error.OutOfBounds;
-        }
-
-        pub fn directionOffset(direction: Direction) Offset {
-            return switch (direction) {
-                .north => Offset{ .x = 0, .y = 1 },
-                .east => Offset{ .x = 1, .y = 0 },
-                .south => Offset{ .x = 0, .y = -1 },
-                .west => Offset{ .x = -1, .y = 0 },
-            };
-        }
-
-        pub fn addOffsets(a: Offset, b: Offset) Offset {
-            return Offset{
-                .x = a.x + b.x,
-                .y = a.y + b.y,
-            };
-        }
-
-        pub fn coordPlusOffsetClamped(bounds: Bounds, coord: Coord, offset: Offset) Coord {
-            return Coord{
-                .x = @intCast(HalfUInt, std.math.clamp(@as(FullSint, coord.x) + offset.x, 0, bounds.w)),
-                .y = @intCast(HalfUInt, std.math.clamp(@as(FullSint, coord.y) + offset.y, 0, bounds.h)),
-            };
-        }
-
-        pub fn coordPlusOffsetWrapped(bounds: Bounds, coord: Coord, offset: Offset) Coord {
-            return Coord{
-                .x = if (offset.x < 0)
-                    @intCast(HalfUInt, (coord.x + (bounds.w - (@intCast(HalfUInt, -offset.x) % bounds.w))) % bounds.w)
-                else
-                    @intCast(HalfUInt, (coord.x + @intCast(HalfUInt, offset.x)) % bounds.w),
-                .y = if (offset.y < 0)
-                    @intCast(HalfUInt, (coord.y + (bounds.h - (@intCast(HalfUInt, -offset.y) % bounds.h))) % bounds.h)
-                else
-                    @intCast(HalfUInt, (coord.y + @intCast(HalfUInt, offset.y)) % bounds.h),
-            };
-        }
-    };
-}
