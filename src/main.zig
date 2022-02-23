@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const cardinal = @import("cardinal.zig");
-const Indexer2d = @import("indexer2d.zig").Indexer2d;
+const spatial = @import("spatial/spatial.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -34,7 +33,7 @@ const SnakeGame = struct {
     snake_head_coord: Indexer.Coord,
     snake_tail_coord: Indexer.Coord,
 
-    pub const Indexer = Indexer2d(@bitSizeOf(usize));
+    pub const Indexer = spatial.Indexer2d(@bitSizeOf(usize));
 
     /// Asserts that the legnth of the buffer given is equivalent to the length represented by the size given.
     /// Buffer must remain alive for the duration of the life of this snake.
@@ -74,8 +73,8 @@ const SnakeGame = struct {
                 .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
-                .direction = random.enumValue(cardinal.Direction),
-                .rotation = if (random.boolean()) random.enumValue(cardinal.Rotation) else null,
+                .direction = random.enumValue(spatial.Direction),
+                .rotation = if (random.boolean()) random.enumValue(spatial.Rotation) else null,
             },
         );
     }
@@ -100,8 +99,8 @@ const SnakeGame = struct {
                 .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
-                .direction = random.enumValue(cardinal.Direction),
-                .rotation = if (random.boolean()) random.enumValue(cardinal.Rotation) else null,
+                .direction = random.enumValue(spatial.Direction),
+                .rotation = if (random.boolean()) random.enumValue(spatial.Rotation) else null,
             },
         ) catch |err| return switch (err) {
             error.OutOfMemory => error.OutOfMemory,
@@ -120,8 +119,8 @@ const SnakeGame = struct {
         const old_head_data: SnakeCellData = self.getSnakeHeadCell().snake;
         const old_tail_data: SnakeCellData = self.getSnakeTailCell().snake;
 
-        const old_head_direction: cardinal.Direction = if (old_head_data.rotation) |r| old_head_data.direction.rotated(r) else old_head_data.direction;
-        const old_tail_direction: cardinal.Direction = if (old_tail_data.rotation) |r| old_tail_data.direction.rotated(r) else old_tail_data.direction;
+        const old_head_direction: spatial.Direction = if (old_head_data.rotation) |r| old_head_data.direction.rotated(r) else old_head_data.direction;
+        const old_tail_direction: spatial.Direction = if (old_tail_data.rotation) |r| old_tail_data.direction.rotated(r) else old_tail_data.direction;
 
         const dst_head_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_head_coord, Indexer.directionOffset(old_head_direction));
         const dst_tail_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_tail_coord, Indexer.directionOffset(old_tail_direction));
@@ -243,7 +242,7 @@ const SnakeGame = struct {
         snake: SnakeCellData,
     };
     pub const SnakeCellData = struct {
-        direction: cardinal.Direction,
-        rotation: ?cardinal.Rotation,
+        direction: spatial.Direction,
+        rotation: ?spatial.Rotation,
     };
 };

@@ -1,5 +1,5 @@
 const std = @import("std");
-const cardinal = @import("cardinal.zig");
+const spatial = @import("spatial.zig");
 
 pub fn Indexer2d(comptime int_bits: u16) type {
     return struct {
@@ -49,7 +49,7 @@ pub fn Indexer2d(comptime int_bits: u16) type {
             } else error.OutOfBounds;
         }
 
-        pub fn directionOffset(direction: cardinal.Direction) Offset {
+        pub fn directionOffset(direction: spatial.Direction) Offset {
             return switch (direction) {
                 .north => Offset{ .x = 0, .y = 1 },
                 .east => Offset{ .x = 1, .y = 0 },

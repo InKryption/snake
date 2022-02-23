@@ -1,3 +1,5 @@
+pub const Indexer2d = @import("indexer2d.zig").Indexer2d;
+
 pub const Rotation = enum {
     clockwise,
     anticlockwise,
@@ -39,3 +41,4 @@ pub const Direction = enum {
         };
     }
 };
+
