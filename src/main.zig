@@ -12,7 +12,7 @@ pub fn main() !void {
     var default_prng = std.rand.DefaultPrng.init(@bitCast(u64, std.time.milliTimestamp()));
     const random = default_prng.random();
 
-    const grid_size = SnakeGame.Indexer.Bounds{ .w = 10, .h = 10 };
+    const grid_size = SnakeGame.Indexer.Bounds{ .w = 5, .h = 5 };
     const cell_size = SnakeGame.Indexer.Bounds{ .w = 50, .h = 50 };
     _ = cell_size;
 
@@ -94,10 +94,12 @@ pub fn main() !void {
             .grow => {
                 if (current_food.* != .food) {
                     current_food = sg.spawnFoodRandom(random) orelse
-                        return std.debug.print("Snake Wins.\n", .{});
-                }
+                        return std.debug.print("You Win.\n", .{});
+                } else unreachable;
             },
-            .collision => {},
+            .collision => {
+                return std.debug.print("You Lose.\n", .{});
+            },
         };
 
         try renderer.setColor(sdl.Color.black);
@@ -127,9 +129,20 @@ pub fn main() !void {
                         try renderer.setColor(sdl.Color.red);
                         try renderer.fillRect(dst_rect);
                     },
-                    .snake => {
-                        try renderer.setColor(sdl.Color.green);
+                    .snake => |data| {
+                        try renderer.setColor(sdl.Color.rgb(0, 128, 16));
                         try renderer.fillRect(dst_rect);
+                        const k = struct {
+                            fn k(d: spatial.Direction, r_or_null: ?spatial.Rotation) u3 {
+                                return (@enumToInt(d) + 1) * if (r_or_null) |r|
+                                     (@enumToInt(r) + 1)
+                                else
+                                    (@enumToInt(std.enums.values(spatial.Rotation)[std.enums.values(spatial.Rotation).len - 1]) + 1);
+                            }
+                        }.k;
+                        switch (k(data.direction, data.rotation)) {
+                            k(.north, .clockwise) => _,
+                        }
                     },
                 }
             }
