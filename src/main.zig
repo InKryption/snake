@@ -16,13 +16,11 @@ pub fn main() !void {
 
     var y: SnakeGame.Indexer.HalfUInt = 0;
     while (y < sg.size.h) : (y += 1) {
-        for (sg.getGridRow(y)) |cell| {
-            switch (cell) {
-                .snake => std.debug.print("🔲", .{}),
-                .food => std.debug.print("🔴", .{}),
-                .air => std.debug.print("⬛", .{}),
-            }
-        }
+        for (sg.getGridRow(y)) |cell| switch (cell) {
+            .snake => std.debug.print("🔲", .{}),
+            .food => std.debug.print("🔴", .{}),
+            .air => std.debug.print("⬛", .{}),
+        };
         std.debug.print("\n", .{});
     }
 }
