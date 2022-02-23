@@ -11,13 +11,16 @@ pub fn main() !void {
     var sg = try SnakeGame.initAllocRandom(allocator, .{ .w = 10, .h = 10 }, random);
     defer sg.deinitAllocated(allocator);
 
+    var current_food = sg.spawnFoodRandom(random).?;
+    _ = current_food;
+
     var y: SnakeGame.Indexer.HalfUInt = 0;
     while (y < sg.size.h) : (y += 1) {
         for (sg.getGridRow(y)) |cell| {
             switch (cell) {
-                .snake => std.debug.print("# ", .{}),
-                .food => std.debug.print("O ", .{}),
-                .air => std.debug.print("[]", .{}),
+                .snake => std.debug.print("🔲", .{}),
+                .food => std.debug.print("🔴", .{}),
+                .air => std.debug.print("⬛", .{}),
             }
         }
         std.debug.print("\n", .{});
@@ -147,6 +150,39 @@ const SnakeGame = struct {
             .food => .grow,
             .snake => .{ .collision = undefined },
         };
+    }
+
+    /// Attempts to spawn food at the given location; if successful, returns a pointer
+    /// to the cell where the food has been spawned. Otherwise, returns null.
+    pub fn spawnFoodMaybe(self: *SnakeGame, coord: Indexer.Coord) ?*Occupant {
+        const ptr = self.getOccupantPtr(coord);
+        switch (ptr.*) {
+            .food, .snake => return null,
+            .air => {
+                ptr.* = .food;
+                return ptr;
+            },
+        }
+    }
+    /// Randomly spawns food at some location in the grid, and returns a pointer
+    /// to the cell where the food has been spawned.
+    /// Returns null if there are no spaces where food can spawn.
+    pub fn spawnFoodRandom(self: *SnakeGame, random: std.rand.Random) ?*Occupant {
+        blk: for (self.getOccupantsSlice()) |cell| {
+            switch (cell) {
+                .air => break :blk,
+                .food => continue,
+                .snake => continue,
+            }
+        } else return null;
+
+        var ptr: ?*Occupant = null;
+        return while (ptr == null) {
+            ptr = self.spawnFoodMaybe(.{
+                .x = random.uintLessThan(Indexer.HalfUInt, self.size.w),
+                .y = random.uintLessThan(Indexer.HalfUInt, self.size.h),
+            });
+        } else ptr;
     }
 
     pub fn getGridRow(self: SnakeGame, y: Indexer.HalfUInt) []const Occupant {
