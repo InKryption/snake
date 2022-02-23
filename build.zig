@@ -1,4 +1,5 @@
 const std = @import("std");
+const SdlSdk = @import("dep/MasterQ32/SDL.zig/Sdk.zig");
 
 pub fn build(b: *std.build.Builder) void {
     const target = b.standardTargetOptions(.{});
@@ -8,6 +9,10 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
+
+    const sdl_sdk = SdlSdk.init(b);
+    sdl_sdk.link(exe, .static);
+    exe.addPackage(sdl_sdk.getWrapperPackage("MasterQ32/SDL"));
 
     const run_cmd = exe.run();
     run_cmd.step.dependOn(b.getInstallStep());
