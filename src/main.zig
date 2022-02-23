@@ -48,7 +48,13 @@ pub fn main() !void {
         if (timer.read() >= 16 * std.time.ns_per_ms) {
             timer.reset();
         } else continue :mainloop;
+
         tick = (tick + 1) % tick_loop;
+        if (tick == 0) switch (sg.advance()) {
+            .move => {},
+            .grow => {},
+            .collision => {},
+        };
 
         try renderer.setColor(sdl.Color.black);
         try renderer.clear();

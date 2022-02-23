@@ -14,20 +14,20 @@ pub const Direction = enum {
     pub fn rotated(direction: Direction, rotation: Rotation) Direction {
         return switch (direction) {
             .north => switch (rotation) {
-                .clockwise => .east,
-                .anticlockwise => .west,
+                .clockwise => Direction.east,
+                .anticlockwise => Direction.west,
             },
             .east => switch (rotation) {
-                .clockwise => .south,
-                .anticlockwise => .north,
+                .clockwise => Direction.south,
+                .anticlockwise => Direction.north,
             },
             .south => switch (rotation) {
-                .clockwise => .west,
-                .anticlockwise => .east,
+                .clockwise => Direction.west,
+                .anticlockwise => Direction.east,
             },
             .west => switch (rotation) {
-                .clockwise => .north,
-                .anticlockwise => .south,
+                .clockwise => Direction.north,
+                .anticlockwise => Direction.south,
             },
         };
     }
