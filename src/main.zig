@@ -10,6 +10,18 @@ pub fn main() !void {
 
     var sg = try SnakeGame.initAllocRandom(allocator, .{ .w = 10, .h = 10 }, random);
     defer sg.deinitAllocated(allocator);
+
+    var y: SnakeGame.Indexer.HalfUInt = 0;
+    while (y < sg.size.h) : (y += 1) {
+        for (sg.getGridRow(y)) |cell| {
+            switch (cell) {
+                .snake => std.debug.print("# ", .{}),
+                .food => std.debug.print("O ", .{}),
+                .air => std.debug.print("[]", .{}),
+            }
+        }
+        std.debug.print("\n", .{});
+    }
 }
 
 const SnakeGame = struct {
@@ -48,15 +60,14 @@ const SnakeGame = struct {
         };
     }
 
-    /// A combination of `initAlloc` and `initRandom`.
-    /// Must be deinitialized with `deinitAllocated`.
-    pub fn initAllocRandom(allocator: std.mem.Allocator, size: Indexer.Bounds, random: std.rand.Random) std.mem.Allocator.Error!SnakeGame {
-        return try initAlloc(
-            allocator,
+    /// Same as `initBuffer`, but snake spawns at a randomly determined location.
+    pub fn initBufferRandom(buffer: []Occupant, size: Indexer.Bounds, random: std.rand.Random) Indexer.Error!SnakeGame {
+        return try initBuffer(
+            buffer,
             size,
             Indexer.Coord{
-                .x = random.uintAtMost(Indexer.HalfUInt, size.w),
-                .y = random.uintAtMost(Indexer.HalfUInt, size.h),
+                .x = random.uintLessThan(Indexer.HalfUInt, size.w),
+                .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
                 .direction = random.enumValue(Direction),
@@ -67,31 +78,35 @@ const SnakeGame = struct {
 
     /// Allocates a buffer of the appropriate size.
     /// Must be deinitialized with `deinitAllocated`.
-    pub fn initAlloc(allocator: std.mem.Allocator, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) std.mem.Allocator.Error!SnakeGame {
+    pub fn initAlloc(allocator: std.mem.Allocator, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) (std.mem.Allocator.Error || Indexer.Error)!SnakeGame {
         const buffer = try allocator.alloc(Occupant, Indexer.boundsToLen(size));
         errdefer allocator.free(buffer);
 
-        return initBuffer(buffer, size, head_coord, head_data) catch unreachable;
+        return try initBuffer(buffer, size, head_coord, head_data);
     }
 
-    pub fn deinitAllocated(self: SnakeGame, allocator: std.mem.Allocator) void {
-        allocator.free(self.getOccupantsSliceMut());
-    }
-
-    /// Same as `initBuffer`, but snake spawns at a randomly determined location.
-    pub fn initBufferRandom(buffer: []Occupant, size: Indexer.Bounds, random: std.rand.Random) Indexer.Error!SnakeGame {
-        return try initBuffer(
-            buffer,
+    /// A combination of `initAlloc` and `initRandom`.
+    /// Must be deinitialized with `deinitAllocated`.
+    pub fn initAllocRandom(allocator: std.mem.Allocator, size: Indexer.Bounds, random: std.rand.Random) std.mem.Allocator.Error!SnakeGame {
+        return initAlloc(
+            allocator,
             size,
             Indexer.Coord{
-                .x = random.uintAtMost(Indexer.HalfUInt, size.w),
-                .y = random.uintAtMost(Indexer.HalfUInt, size.h),
+                .x = random.uintLessThan(Indexer.HalfUInt, size.w),
+                .y = random.uintLessThan(Indexer.HalfUInt, size.h),
             },
             SnakeCellData{
                 .direction = random.enumValue(Direction),
                 .rotation = if (random.boolean()) random.enumValue(Rotation) else null,
             },
-        );
+        ) catch |err| return switch (err) {
+            error.OutOfMemory => error.OutOfMemory,
+            error.OutOfBounds => unreachable,
+        };
+    }
+
+    pub fn deinitAllocated(self: SnakeGame, allocator: std.mem.Allocator) void {
+        allocator.free(self.getOccupantsSliceMut());
     }
 
     pub fn advance(self: *SnakeGame) Event {
@@ -132,6 +147,16 @@ const SnakeGame = struct {
             .food => .grow,
             .snake => .{ .collision = undefined },
         };
+    }
+
+    pub fn getGridRow(self: SnakeGame, y: Indexer.HalfUInt) []const Occupant {
+        var copy = self;
+        return copy.getGridRowMut(y);
+    }
+    pub fn getGridRowMut(self: *SnakeGame, y: Indexer.HalfUInt) []Occupant {
+        const start = Indexer.coordToIndexInBounds(self.size, .{ .x = 0, .y = y }) catch unreachable;
+        const end = Indexer.coordToIndexInOrOnBounds(self.size, .{ .x = self.size.w, .y = y }) catch unreachable;
+        return self.getOccupantsSliceMut()[start..end];
     }
 
     pub fn getSnakeHeadCell(self: SnakeGame) Occupant {
@@ -247,15 +272,17 @@ pub fn Indexer2d(comptime int_bits: u16) type {
         }
 
         pub fn coordToIndexInBounds(bounds: Bounds, coord: Coord) Error!FullUInt {
-            return if (coord.x < bounds.w or coord.y < bounds.h)
-                @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w)
+            const result = @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w);
+            return if ((coord.x < bounds.w or coord.y < bounds.h) and result < boundsToLen(bounds))
+                result
             else
                 error.OutOfBounds;
         }
 
         pub fn coordToIndexInOrOnBounds(bounds: Bounds, coord: Coord) Error!FullUInt {
-            return if (coord.x <= bounds.w or coord.y <= bounds.h)
-                @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w)
+            const result = @as(FullUInt, coord.x) + std.math.mulWide(HalfUInt, coord.y, bounds.w);
+            return if ((coord.x <= bounds.w or coord.y <= bounds.h) and result <= boundsToLen(bounds))
+                result
             else
                 error.OutOfBounds;
         }
