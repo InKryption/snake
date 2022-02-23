@@ -108,7 +108,8 @@ pub fn advance(self: *SnakeGame) Event {
         },
     }
 
-    switch (self.getOccupant(dst_head_coord)) {
+    const dst_head_old_occupant = self.getOccupant(dst_head_coord);
+    switch (dst_head_old_occupant) {
         .snake => {},
         .air, .food => {
             self.snake_head_coord = dst_head_coord;
@@ -119,7 +120,7 @@ pub fn advance(self: *SnakeGame) Event {
         },
     }
 
-    return switch (self.getOccupant(dst_head_coord)) {
+    return switch (dst_head_old_occupant) {
         .air => .move,
         .food => .grow,
         .snake => .{ .collision = undefined },

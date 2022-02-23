@@ -35,12 +35,51 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
     var tick: u64 = 0;
-    const tick_loop: u64 = 100;
+    const tick_loop: u64 = 25;
 
     mainloop: while (true) {
         while (sdl.pollEvent()) |event| {
             switch (event) {
                 .quit => break :mainloop,
+                .key_down => |info| blk: {
+                    if (info.is_repeat) break :blk;
+                    if (switch (info.scancode) {
+                        .up, .down, .left, .right => false,
+                        else => true,
+                    }) break :blk;
+
+                    const current_rotation = sg.getSnakeHeadCell().snake.rotation;
+                    sg.getSnakeHeadCellPtr().snake.rotation = switch (sg.getSnakeHeadCell().snake.direction) {
+                        .north => switch (info.scancode) {
+                            .down => null,
+                            .up => current_rotation,
+                            .left => spatial.Rotation.anticlockwise,
+                            .right => spatial.Rotation.clockwise,
+                            else => unreachable,
+                        },
+                        .east => switch (info.scancode) {
+                            .down => spatial.Rotation.anticlockwise,
+                            .up => spatial.Rotation.clockwise,
+                            .left => current_rotation,
+                            .right => null,
+                            else => unreachable,
+                        },
+                        .south => switch (info.scancode) {
+                            .down => current_rotation,
+                            .up => null,
+                            .left => spatial.Rotation.clockwise,
+                            .right => spatial.Rotation.anticlockwise,
+                            else => unreachable,
+                        },
+                        .west => switch (info.scancode) {
+                            .down => spatial.Rotation.clockwise,
+                            .up => spatial.Rotation.anticlockwise,
+                            .left => null,
+                            .right => current_rotation,
+                            else => unreachable,
+                        },
+                    };
+                },
                 else => {},
             }
         }
@@ -52,19 +91,24 @@ pub fn main() !void {
         tick = (tick + 1) % tick_loop;
         if (tick == 0) switch (sg.advance()) {
             .move => {},
-            .grow => {},
+            .grow => {
+                if (current_food.* != .food) {
+                    current_food = sg.spawnFoodRandom(random) orelse
+                        return std.debug.print("Snake Wins.\n", .{});
+                }
+            },
             .collision => {},
         };
 
         try renderer.setColor(sdl.Color.black);
         try renderer.clear();
 
-        var y: SnakeGame.Indexer.HalfUInt = 0;
-        while (y < sg.size.h) : (y += 1) {
-            for (sg.getGridRow(y)) |cell, x| {
+        var y: SnakeGame.Indexer.HalfUInt = sg.size.h;
+        while (y > 0) : (y -= 1) {
+            for (sg.getGridRow(y - 1)) |cell, x| {
                 const coord: SnakeGame.Indexer.Coord = .{
                     .x = @intCast(SnakeGame.Indexer.HalfUInt, x),
-                    .y = y,
+                    .y = (y - 1),
                 };
 
                 const dst_rect: sdl.Rectangle = .{
