@@ -132,16 +132,26 @@ pub fn main() !void {
                     .snake => |data| {
                         try renderer.setColor(sdl.Color.rgb(0, 128, 16));
                         try renderer.fillRect(dst_rect);
-                        const k = struct {
-                            fn k(d: spatial.Direction, r_or_null: ?spatial.Rotation) u3 {
-                                return (@enumToInt(d) + 1) * if (r_or_null) |r|
-                                     (@enumToInt(r) + 1)
-                                else
-                                    (@enumToInt(std.enums.values(spatial.Rotation)[std.enums.values(spatial.Rotation).len - 1]) + 1);
-                            }
-                        }.k;
-                        switch (k(data.direction, data.rotation)) {
-                            k(.north, .clockwise) => _,
+
+                        switch (data.direction) {
+                            .north, .south => {
+                                try renderer.setColor(sdl.Color.rgb(0, 156, 0));
+                                try renderer.fillRect(.{
+                                    .x = dst_rect.x + 10,
+                                    .y = dst_rect.y,
+                                    .width = dst_rect.width - 20,
+                                    .height = dst_rect.height,
+                                });
+                            },
+                            .west, .east => {
+                                try renderer.setColor(sdl.Color.rgb(0, 156, 0));
+                                try renderer.fillRect(.{
+                                    .x = dst_rect.x,
+                                    .y = dst_rect.y + 10,
+                                    .width = dst_rect.width,
+                                    .height = dst_rect.height - 20,
+                                });
+                            },
                         }
                     },
                 }
