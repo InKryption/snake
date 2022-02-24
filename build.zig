@@ -9,9 +9,13 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.install();
+    exe.addLibraryPath("/usr/lib");
 
     const sdl_sdk = SdlSdk.init(b);
-    sdl_sdk.link(exe, .static);
+    // // For some reason this doesn't work on my other computer, so I link it manually, which works.
+    // sdl_sdk.link(exe, .dynamic);
+    exe.linkLibC();
+    exe.linkSystemLibrary("SDL2");
     exe.addPackage(sdl_sdk.getWrapperPackage("MasterQ32/SDL"));
 
     const run_cmd = exe.run();
