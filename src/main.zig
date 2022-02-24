@@ -130,28 +130,50 @@ pub fn main() !void {
                         try renderer.fillRect(dst_rect);
                     },
                     .snake => |data| {
-                        try renderer.setColor(sdl.Color.rgb(0, 128, 16));
-                        try renderer.fillRect(dst_rect);
+                        try renderer.setColor(sdl.Color.rgb(0, 156, 0));
+                        if (data.rotation) |r| switch (data.direction) {
+                            .north => {
+                                const x0 = switch (r) {
+                                    .clockwise => dst_rect.x,
+                                    .anticlockwise => dst_rect.x + dst_rect.width,
+                                };
+                                const y0 = switch (r) {
+                                    .clockwise => dst_rect.y,
+                                    .anticlockwise => dst_rect.y,
+                                };
+                                const x1 = switch (r) {
+                                    .clockwise => dst_rect.x + dst_rect.width,
+                                    .anticlockwise => dst_rect.x,
+                                };
+                                const y1 = switch (r) {
+                                    .clockwise => dst_rect.y + dst_rect.height,
+                                    .anticlockwise => dst_rect.y + dst_rect.height,
+                                };
+                                try renderer.drawLine(x0, y0, x1, y1);
+                            },
+                            else => {},
+                        } else {
+                            try renderer.fillRect(dst_rect);
 
-                        switch (data.direction) {
-                            .north, .south => {
-                                try renderer.setColor(sdl.Color.rgb(0, 156, 0));
-                                try renderer.fillRect(.{
-                                    .x = dst_rect.x + 10,
-                                    .y = dst_rect.y,
-                                    .width = dst_rect.width - 20,
-                                    .height = dst_rect.height,
-                                });
-                            },
-                            .west, .east => {
-                                try renderer.setColor(sdl.Color.rgb(0, 156, 0));
-                                try renderer.fillRect(.{
-                                    .x = dst_rect.x,
-                                    .y = dst_rect.y + 10,
-                                    .width = dst_rect.width,
-                                    .height = dst_rect.height - 20,
-                                });
-                            },
+                            try renderer.setColor(sdl.Color.rgb(0, 128, 16));
+                            switch (data.direction) {
+                                .north, .south => {
+                                    try renderer.fillRect(.{
+                                        .x = dst_rect.x + 10,
+                                        .y = dst_rect.y,
+                                        .width = dst_rect.width - 20,
+                                        .height = dst_rect.height,
+                                    });
+                                },
+                                .west, .east => {
+                                    try renderer.fillRect(.{
+                                        .x = dst_rect.x,
+                                        .y = dst_rect.y + 10,
+                                        .width = dst_rect.width,
+                                        .height = dst_rect.height - 20,
+                                    });
+                                },
+                            }
                         }
                     },
                 }
