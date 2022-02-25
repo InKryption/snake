@@ -12,7 +12,7 @@ pub const Indexer = spatial.Indexer2d(@bitSizeOf(usize));
 /// Asserts that the legnth of the buffer given is equivalent to the length represented by the size given.
 /// Buffer must remain alive for the duration of the life of this snake.
 /// Deinitialization not required.
-pub fn initBuffer(buffer: []Occupant, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) Indexer.Error!SnakeGame {
+pub fn initBuffer(buffer: []Occupant, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) Indexer.OutOfBounds!SnakeGame {
     std.debug.assert(Indexer.boundsToLen(size) == buffer.len);
     const head_index = try Indexer.coordToIndexInBounds(size, head_coord);
 
@@ -55,7 +55,7 @@ pub fn initBufferRandom(buffer: []Occupant, size: Indexer.Bounds, random: std.ra
 
 /// Allocates a buffer of the appropriate size.
 /// Must be deinitialized with `deinitAllocated`.
-pub fn initAlloc(allocator: std.mem.Allocator, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) (std.mem.Allocator.Error || Indexer.Error)!SnakeGame {
+pub fn initAlloc(allocator: std.mem.Allocator, size: Indexer.Bounds, head_coord: Indexer.Coord, head_data: SnakeCellData) (std.mem.Allocator.Error || Indexer.OutOfBounds)!SnakeGame {
     const buffer = try allocator.alloc(Occupant, Indexer.boundsToLen(size));
     errdefer allocator.free(buffer);
 
@@ -96,8 +96,10 @@ pub fn advance(self: *SnakeGame) Event {
     const old_head_direction: spatial.Direction = if (old_head_data.rotation) |r| old_head_data.direction.rotated(r) else old_head_data.direction;
     const old_tail_direction: spatial.Direction = if (old_tail_data.rotation) |r| old_tail_data.direction.rotated(r) else old_tail_data.direction;
 
-    const dst_head_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_head_coord, Indexer.directionOffset(old_head_direction));
-    const dst_tail_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_tail_coord, Indexer.directionOffset(old_tail_direction));
+    // const dst_head_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_head_coord, Indexer.directionOffset(old_head_direction));
+    const dst_head_coord: Indexer.Coord = old_head_coord.plusOffsetWrapped(self.size, Indexer.directionOffset(old_head_direction));
+    // const dst_tail_coord: Indexer.Coord = Indexer.coordPlusOffsetWrapped(self.size, old_tail_coord, Indexer.directionOffset(old_tail_direction));
+    const dst_tail_coord: Indexer.Coord = old_tail_coord.plusOffsetWrapped(self.size, Indexer.directionOffset(old_tail_direction));
 
     std.debug.assert(self.getOccupant(dst_tail_coord) == .snake);
     switch (self.getOccupant(dst_head_coord)) {
@@ -189,7 +191,8 @@ pub fn getOccupant(self: SnakeGame, coord: Indexer.Coord) Occupant {
     return copy.getOccupantPtr(coord).*;
 }
 pub fn getOccupantPtr(self: *SnakeGame, coord: Indexer.Coord) *Occupant {
-    const index = Indexer.coordToIndexInBounds(self.size, coord) catch unreachable;
+    // const index = Indexer.coordToIndexInBounds(self.size, coord) catch unreachable;
+    const index = coord.toIndexInBounds(self.size) catch unreachable;
     return &self.getOccupantsSliceMut()[index];
 }
 
@@ -198,7 +201,7 @@ pub fn getOccupantsSlice(self: SnakeGame) []const Occupant {
     return copy.getOccupantsSliceMut();
 }
 pub fn getOccupantsSliceMut(self: SnakeGame) []Occupant {
-    return self.occupants[0..Indexer.boundsToLen(self.size)];
+    return self.occupants[0..self.size.toLen()];
 }
 
 pub const Event = union(enum) {
