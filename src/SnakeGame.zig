@@ -125,7 +125,10 @@ pub fn advance(self: *SnakeGame) Event {
     return switch (dst_head_old_occupant) {
         .air => .move,
         .food => .grow,
-        .snake => .{ .collision = undefined },
+        .snake => .{ .collision = .{
+            .original_coord = old_head_coord,
+            .snake_data = old_head_data,
+        } },
     };
 }
 
