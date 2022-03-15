@@ -37,48 +37,47 @@ pub fn main() !void {
     var tick: u64 = 0;
     const tick_loop: u64 = 25;
 
+    var user_inputs = try std.ArrayList(?spatial.Rotation).initCapacity(allocator, 1024);
+    defer user_inputs.deinit();
+
     mainloop: while (true) {
         while (sdl.pollEvent()) |event| {
             switch (event) {
                 .quit => break :mainloop,
-                .key_down => |info| blk: {
-                    if (info.is_repeat) break :blk;
-                    if (switch (info.scancode) {
-                        .up, .down, .left, .right => false,
-                        else => true,
-                    }) break :blk;
-
-                    const current_rotation = sg.getSnakeHeadCell().snake.rotation;
-                    sg.getSnakeHeadCellPtr().snake.rotation = switch (sg.getSnakeHeadCell().snake.direction) {
-                        .north => switch (info.scancode) {
-                            .down => null,
-                            .up => current_rotation,
-                            .left => spatial.Rotation.anticlockwise,
-                            .right => spatial.Rotation.clockwise,
-                            else => unreachable,
-                        },
-                        .east => switch (info.scancode) {
-                            .down => spatial.Rotation.anticlockwise,
-                            .up => spatial.Rotation.clockwise,
-                            .left => current_rotation,
-                            .right => null,
-                            else => unreachable,
-                        },
-                        .south => switch (info.scancode) {
-                            .down => current_rotation,
-                            .up => null,
-                            .left => spatial.Rotation.clockwise,
-                            .right => spatial.Rotation.anticlockwise,
-                            else => unreachable,
-                        },
-                        .west => switch (info.scancode) {
-                            .down => spatial.Rotation.clockwise,
-                            .up => spatial.Rotation.anticlockwise,
-                            .left => null,
-                            .right => current_rotation,
-                            else => unreachable,
-                        },
-                    };
+                .key_down => |info| switch (info.scancode) {
+                    .up, .down, .left, .right => if (!info.is_repeat) {
+                        try user_inputs.insert(0, switch (sg.getSnakeHeadCell().snake.direction) {
+                            .south => @as(?spatial.Rotation, switch (info.scancode) {
+                                .up => continue,
+                                .right => .anticlockwise,
+                                .down => null,
+                                .left => .clockwise,
+                                else => unreachable,
+                            }),
+                            .east => @as(?spatial.Rotation, switch (info.scancode) {
+                                .up => .clockwise,
+                                .left => continue,
+                                .down => .anticlockwise,
+                                .right => null,
+                                else => unreachable,
+                            }),
+                            .north => @as(?spatial.Rotation, switch (info.scancode) {
+                                .up => null,
+                                .left => .anticlockwise,
+                                .down => continue,
+                                .right => .clockwise,
+                                else => unreachable,
+                            }),
+                            .west => @as(?spatial.Rotation, switch (info.scancode) {
+                                .up => .anticlockwise,
+                                .left => null,
+                                .down => .clockwise,
+                                .right => continue,
+                                else => unreachable,
+                            }),
+                        });
+                    },
+                    else => continue,
                 },
                 else => {},
             }
@@ -89,18 +88,23 @@ pub fn main() !void {
         } else continue :mainloop;
 
         tick = (tick + 1) % tick_loop;
-        if (tick == 0) switch (sg.advance()) {
-            .move => {},
-            .grow => {
-                if (current_food.* != .food) {
-                    current_food = sg.spawnFoodRandom(random) orelse
-                        return std.debug.print("You Win.\n", .{});
-                } else unreachable;
-            },
-            .collision => {
-                return std.debug.print("You Lose.\n", .{});
-            },
-        };
+        if (tick == 0) {
+            if (user_inputs.items.len != 0) {
+                sg.getSnakeHeadCellPtr().snake.rotation = user_inputs.pop();
+            }
+            switch (sg.advance()) {
+                .move => {},
+                .grow => {
+                    if (current_food.* != .food) {
+                        current_food = sg.spawnFoodRandom(random) orelse
+                            return std.debug.print("You Win.\n", .{});
+                    } else unreachable;
+                },
+                .collision => {
+                    return std.debug.print("You Lose.\n", .{});
+                },
+            }
+        }
 
         try renderer.setColor(sdl.Color.black);
         try renderer.clear();
@@ -130,51 +134,9 @@ pub fn main() !void {
                         try renderer.fillRect(dst_rect);
                     },
                     .snake => |data| {
+                        _ = data;
                         try renderer.setColor(sdl.Color.rgb(0, 156, 0));
-                        if (data.rotation) |r| switch (data.direction) {
-                            .north => {
-                                const x0 = switch (r) {
-                                    .clockwise => dst_rect.x,
-                                    .anticlockwise => dst_rect.x + dst_rect.width,
-                                };
-                                const y0 = switch (r) {
-                                    .clockwise => dst_rect.y,
-                                    .anticlockwise => dst_rect.y,
-                                };
-                                const x1 = switch (r) {
-                                    .clockwise => dst_rect.x + dst_rect.width,
-                                    .anticlockwise => dst_rect.x,
-                                };
-                                const y1 = switch (r) {
-                                    .clockwise => dst_rect.y + dst_rect.height,
-                                    .anticlockwise => dst_rect.y + dst_rect.height,
-                                };
-                                try renderer.drawLine(x0, y0, x1, y1);
-                            },
-                            else => {},
-                        } else {
-                            try renderer.fillRect(dst_rect);
-
-                            try renderer.setColor(sdl.Color.rgb(0, 128, 16));
-                            switch (data.direction) {
-                                .north, .south => {
-                                    try renderer.fillRect(.{
-                                        .x = dst_rect.x + 10,
-                                        .y = dst_rect.y,
-                                        .width = dst_rect.width - 20,
-                                        .height = dst_rect.height,
-                                    });
-                                },
-                                .west, .east => {
-                                    try renderer.fillRect(.{
-                                        .x = dst_rect.x,
-                                        .y = dst_rect.y + 10,
-                                        .width = dst_rect.width,
-                                        .height = dst_rect.height - 20,
-                                    });
-                                },
-                            }
-                        }
+                        try renderer.fillRect(dst_rect);
                     },
                 }
             }
