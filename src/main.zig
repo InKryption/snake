@@ -12,8 +12,8 @@ pub fn main() !void {
     var default_prng = std.rand.DefaultPrng.init(@bitCast(u64, std.time.milliTimestamp()));
     const random = default_prng.random();
 
-    const grid_size = SnakeGame.Indexer.Bounds{ .w = 5, .h = 5 };
-    const cell_size = SnakeGame.Indexer.Bounds{ .w = 50, .h = 50 };
+    const grid_size = SnakeGame.Indexer.Bounds{ .w = 20, .h = 20 };
+    const cell_size = SnakeGame.Indexer.Bounds{ .w = 20, .h = 20 };
     _ = cell_size;
 
     var sg = try SnakeGame.initAllocRandom(allocator, grid_size, random);
@@ -35,7 +35,18 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
     var tick: u64 = 0;
-    const tick_loop: u64 = 25;
+    const tick_loop: u64 = 20;
+
+    const keyboard = sdl.getKeyboardState();
+    const KeyState = struct {
+        was_pressed: bool = false,
+        is_pressed: bool = false,
+
+        fn justPressed(ks: @This()) bool {
+            return !ks.was_pressed and ks.is_pressed;
+        }
+    };
+    var user_key_states = std.EnumArray(spatial.Direction, KeyState).initFill(.{});
 
     var user_inputs = try std.ArrayList(?spatial.Rotation).initCapacity(allocator, 1024);
     defer user_inputs.deinit();
@@ -44,43 +55,58 @@ pub fn main() !void {
         while (sdl.pollEvent()) |event| {
             switch (event) {
                 .quit => break :mainloop,
-                .key_down => |info| switch (info.scancode) {
-                    .up, .down, .left, .right => if (!info.is_repeat) {
-                        try user_inputs.insert(0, switch (sg.getSnakeHeadCell().snake.direction) {
-                            .south => @as(?spatial.Rotation, switch (info.scancode) {
-                                .up => continue,
-                                .right => .anticlockwise,
-                                .down => null,
-                                .left => .clockwise,
-                                else => unreachable,
-                            }),
-                            .east => @as(?spatial.Rotation, switch (info.scancode) {
-                                .up => .clockwise,
-                                .left => continue,
-                                .down => .anticlockwise,
-                                .right => null,
-                                else => unreachable,
-                            }),
-                            .north => @as(?spatial.Rotation, switch (info.scancode) {
-                                .up => null,
-                                .left => .anticlockwise,
-                                .down => continue,
-                                .right => .clockwise,
-                                else => unreachable,
-                            }),
-                            .west => @as(?spatial.Rotation, switch (info.scancode) {
-                                .up => .anticlockwise,
-                                .left => null,
-                                .down => .clockwise,
-                                .right => continue,
-                                else => unreachable,
-                            }),
-                        });
-                    },
-                    else => continue,
-                },
                 else => {},
             }
+        }
+        update_user_key_states: {
+            var iterator = user_key_states.iterator();
+            while (iterator.next()) |entry| {
+                entry.value.was_pressed = entry.value.is_pressed;
+                entry.value.is_pressed = keyboard.isPressed(switch (entry.key) {
+                    .north => .up,
+                    .east => .right,
+                    .south => .down,
+                    .west => .left,
+                });
+            }
+            break :update_user_key_states;
+        }
+        update_user_inputs: {
+            const actual_rot = sg.getSnakeHeadCell().snake.rotation;
+            const k = struct {
+                fn k(b0: u1, b1: u1, b2: u1) u3 {
+                    const Bits = packed struct { b0: u1, b1: u1, b2: u1 };
+                    return @bitCast(u3, Bits{ .b0 = b0, .b1 = b1, .b2 = b2 });
+                }
+            }.k;
+
+            const d_forward = sg.getSnakeHeadCell().snake.direction;
+            const d_clockwise = d_forward.rotated(.clockwise);
+            const d_anticlockwise = d_forward.rotated(.anticlockwise);
+
+            const b0 = @boolToInt(user_key_states.get(d_forward).justPressed());
+            const b1 = @boolToInt(user_key_states.get(d_clockwise).justPressed());
+            const b2 = @boolToInt(user_key_states.get(d_anticlockwise).justPressed());
+
+            try user_inputs.append(switch (k(b0, b1, b2)) {
+                k(0, 0, 0) => break :update_user_inputs,
+                k(1, 1, 1) => break :update_user_inputs,
+
+                k(1, 0, 0) => null,
+                k(0, 1, 0) => .clockwise,
+                k(0, 0, 1) => .anticlockwise,
+
+                k(0, 1, 1) => if (actual_rot) |rot| rot.reversed() else null,
+                k(1, 0, 1) => @as(?spatial.Rotation, switch (actual_rot orelse .clockwise) {
+                    .clockwise => .anticlockwise,
+                    .anticlockwise => null,
+                }),
+                k(1, 1, 0) => @as(?spatial.Rotation, switch (actual_rot orelse .anticlockwise) {
+                    .anticlockwise => .clockwise,
+                    .clockwise => null,
+                }),
+            });
+            break :update_user_inputs;
         }
 
         if (timer.read() >= 16 * std.time.ns_per_ms) {
@@ -109,12 +135,12 @@ pub fn main() !void {
         try renderer.setColor(sdl.Color.black);
         try renderer.clear();
 
-        var y: SnakeGame.Indexer.HalfUInt = sg.size.h;
-        while (y > 0) : (y -= 1) {
-            for (sg.getGridRow(y - 1)) |cell, x| {
+        var y: SnakeGame.Indexer.HalfUInt = 0;
+        while (y < sg.size.h) : (y += 1) {
+            for (sg.getGridRow(y)) |cell, x| {
                 const coord: SnakeGame.Indexer.Coord = .{
                     .x = @intCast(SnakeGame.Indexer.HalfUInt, x),
-                    .y = (y - 1),
+                    .y = sg.size.h - (y + 1),
                 };
 
                 const dst_rect: sdl.Rectangle = .{
