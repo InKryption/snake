@@ -35,7 +35,7 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
     var tick: u64 = 0;
-    const tick_loop: u64 = 20;
+    const tick_loop: u64 = 10;
 
     const keyboard = sdl.getKeyboardState();
     const KeyState = struct {
@@ -88,7 +88,7 @@ pub fn main() !void {
             const b1 = @boolToInt(user_key_states.get(d_clockwise).justPressed());
             const b2 = @boolToInt(user_key_states.get(d_anticlockwise).justPressed());
 
-            try user_inputs.append(switch (k(b0, b1, b2)) {
+            try user_inputs.insert(0, switch (k(b0, b1, b2)) {
                 k(0, 0, 0) => break :update_user_inputs,
                 k(1, 1, 1) => break :update_user_inputs,
 
