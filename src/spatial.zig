@@ -1,7 +1,5 @@
 const std = @import("std");
 
-pub const Indexer2d = @import("indexer2d.zig").Indexer2d;
-
 pub const Rotation = enum {
     clockwise,
     anticlockwise,
@@ -65,24 +63,24 @@ pub const DirectionRotation = enum {
     west_anticlockwise,
 
     pub fn init(direction: Direction, rotation: Rotation) DirectionRotation {
-        return switch (direction) {
-            .north => switch (rotation) {
-                .clockwise => .north_clockwise,
-                .anticlockwise => .north_anticlockwise,
-            },
-            .east => switch (rotation) {
-                .clockwise => .east_clockwise,
-                .anticlockwise => .east_anticlockwise,
-            },
-            .south => switch (rotation) {
-                .clockwise => .south_clockwise,
-                .anticlockwise => .south_anticlockwise,
-            },
-            .west => switch (rotation) {
-                .clockwise => .west_clockwise,
-                .anticlockwise => .west_anticlockwise,
-            },
+        const lut_index1: u8 = switch (direction) {
+            .north => 0,
+            .east => 1,
+            .south => 2,
+            .west => 3,
         };
+        const lut_index2: u8 = switch (rotation) {
+            .clockwise => 0,
+            .anticlockwise => 1,
+        };
+        const lut = @bitCast([8]DirectionRotation, [4][2]DirectionRotation{
+            // clockwise, anticlockwise
+            .{ .north_clockwise, .north_anticlockwise }, // north
+            .{ .east_clockwise, .east_anticlockwise }, // east
+            .{ .south_clockwise, .south_anticlockwise }, // south
+            .{ .west_clockwise, .west_anticlockwise }, // west
+        });
+        return lut[lut_index1 * 2 + lut_index2];
     }
 
     pub fn getDirection(dr: DirectionRotation) Direction {

@@ -1,7 +1,7 @@
 const std = @import("std");
 const sdl = @import("MasterQ32/SDL");
 
-const spatial = @import("spatial/spatial.zig");
+const spatial = @import("spatial.zig");
 const SnakeGame = @import("SnakeGame.zig");
 
 pub fn main() !void {
@@ -9,18 +9,20 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var default_prng = std.rand.DefaultPrng.init(@bitCast(u64, std.time.milliTimestamp()));
-    const random = default_prng.random();
+    var prng_state = std.rand.RomuTrio.init(seed: {
+        var seed: u64 = undefined;
+        try std.os.getrandom(std.mem.asBytes(&seed));
+        break :seed seed;
+    });
+    const random = prng_state.random();
 
     const grid_size = SnakeGame.Indexer.Bounds{ .w = 20, .h = 20 };
     const cell_size = SnakeGame.Indexer.Bounds{ .w = 20, .h = 20 };
-    _ = cell_size;
 
     var sg = try SnakeGame.initAllocRandom(allocator, grid_size, random);
     defer sg.deinitAllocated(allocator);
 
     var current_food = sg.spawnFoodRandom(random).?;
-    _ = current_food;
 
     try sdl.init(sdl.InitFlags{ .video = true });
     defer sdl.quit();
